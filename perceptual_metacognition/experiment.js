@@ -250,7 +250,7 @@ function makeStim(canvas, backcanvas, angle, contrast) {
 	jgl_canvas.context.putImageData(drawing, 0, 0)
 }
 
-function getStim() {
+function getCalibrationStim() {
 	var angle = Math.random() * 180
 	var sides = jsPsych.randomization.shuffle(['left', 'right'])
 	var stim = '<div class = ' + sides[0] + 'box><canvas id = canvas1></canvas></div>' +
@@ -285,6 +285,48 @@ function getEasyStim() {
 	makeStim('canvas2', 'backCanvas2', angle, 0.2)
 	curr_data.angle = angle
 	curr_data.contrast = contrast
+	correct_response = choices[['left', 'right'].indexOf(sides[1])]
+	curr_data.correct_response = correct_response
+}
+
+function normal_random(mean, variance) {
+	if (mean === undefined)
+		mean = 0.0;
+	if (variance === undefined)
+		variance = 1.0;
+	var V1, V2, S;
+	do {
+		var U1 = Math.random();
+		var U2 = Math.random();
+		V1 = 2 * U1 - 1;
+		V2 = 2 * U2 - 1;
+		S = V1 * V1 + V2 * V2;
+	} while (S > 1);
+
+	X = Math.sqrt(-2 * Math.log(S) / S) * V1;
+	//Y = Math.sqrt(-2 * Math.log(S) / S) * V2;
+	X = mean + Math.sqrt(variance) * X;
+	//Y = mean + Math.sqrt(variance) * Y ;
+	return X;
+}
+
+function getTestStim() {
+	var tmp_contrast = normal_random(contrast, contrast/2)
+	var angle = Math.random() * 180
+	var sides = jsPsych.randomization.shuffle(['left', 'right'])
+	var stim = '<div class = ' + sides[0] + 'box><canvas id = canvas1></canvas></div>' +
+		'<div class = ' + sides[1] + 'box><canvas id = canvas2></canvas></div>' +
+		'<canvas id = backCanvas1></canvas><canvas id = backCanvas2></canvas>'
+	var display_el = jsPsych.getDisplayElement()
+	display_el.append($('<div>', {
+		html: stim,
+		id: 'jspsych-poldrack-single-stim-stimulus'
+	}));
+	makeStim('canvas1', 'backCanvas1', 0, 0)
+	makeStim('canvas2', 'backCanvas2', angle, tmp_contrast)
+	curr_data.angle = angle
+	curr_data.contrast = tmp_contrast
+	curr_data.reference_side = sides[0]
 	correct_response = choices[['left', 'right'].indexOf(sides[1])]
 	curr_data.correct_response = correct_response
 }
@@ -337,6 +379,10 @@ var afterTrialUpdate = function(data) {
 	}
 }
 
+var getLength = function() {
+	return conf_length
+}
+
 /* ************************************ */
 /* Define experimental variables */
 /* ************************************ */
@@ -347,7 +393,8 @@ var credit_var = true
 
 // task specific variables
 var practice_len = 10
-var exp_len = 300
+var calibration_len = 100
+var exp_len = 200
 var contrast = 0.1
 var correct_counter = 0
 var current_trial = 0
@@ -355,6 +402,8 @@ var choices = [37, 39]
 var curr_data = {}
 var confidence_choices = [49, 50, 51, 52]
 var catch_trials = [25, 57, 150, 220, 270]
+var conf_length = 0 //length of confidence block in ms
+var max_trial_length = 5000
 var confidence_response_area =
 	'<div class = centerbox><div class = fixation>+</div></div><div class = response_div>' +
 	'<button class = response_button id = Confidence_1>1:<br> Not Confident At All</button>' +
@@ -471,8 +520,9 @@ var fixation_block = {
 
 var test_block = {
 	type: 'poldrack-single-stim',
-	stimulus: getStim,
+	stimulus: getTestStim,
 	timing_stim: 33,
+	timing_response: max_trial_length,
 	response_ends_trial: true,
 	is_html: true,
 	data: {
@@ -483,7 +533,28 @@ var test_block = {
 	timing_post_trial: 0,
 	prompt: '<div class = centerbox><div class = fixation>+</div></div>',
 	on_finish: function(data) {
+		appendData(data)
+		conf_length = max_trial_length-data.rt
+	}
+};
+
+var calibration_block = {
+	type: 'poldrack-single-stim',
+	stimulus: getCalibrationStim,
+	timing_stim: 33,
+	timing_response: max_trial_length,
+	response_ends_trial: true,
+	is_html: true,
+	data: {
+		trial_id: "stim",
+		exp_stage: "calibration"
+	},
+	choices: [37, 39],
+	timing_post_trial: 0,
+	prompt: '<div class = centerbox><div class = fixation>+</div></div>',
+	on_finish: function(data) {
 		afterTrialUpdate(data)
+		conf_length = max_trial_length-data.rt
 	}
 };
 
@@ -491,6 +562,7 @@ var easy_block = {
 	type: 'poldrack-single-stim',
 	stimulus: getEasyStim,
 	timing_stim: 33,
+	timing_response: max_trial_length,
 	response_ends_trial: true,
 	is_html: true,
 	data: {
@@ -502,6 +574,7 @@ var easy_block = {
 	prompt: '<div class = centerbox><div class = fixation>+</div></div>',
 	on_finish: function(data) {
 		appendData(data)
+		conf_length = max_trial_length-data.rt
 	}
 };
 
@@ -514,8 +587,8 @@ var confidence_block = {
 		trial_id: 'confidence_rating',
 		exp_stage: 'test'
 	},
-	timing_stim: 4000,
-	timing_response: 4000,
+	timing_stim: getLength,
+	timing_response: getLength,
 	response_ends_trial: true,
 	timing_post_trial: 0
 }
@@ -529,8 +602,8 @@ var confidence_key_block = {
 		exp_stage: 'test'
 	},
 	is_html: true,
-	timing_stim: 4000,
-	timing_response: 4000,
+	timing_stim: getLength,
+	timing_response: getLength,
 	response_ends_trial: true,
 	timing_post_trial: 0,
 	on_finish: function(data) {
@@ -549,10 +622,12 @@ for (var i = 0; i < practice_len; i++) {
 	perceptual_metacognition_experiment.push(confidence_key_block);
 }
 perceptual_metacognition_experiment.push(start_test_block)
-for (var i = 0; i < exp_len; i++) {
+for (var i = 0; i < (exp_len + calibration_len); i++) {
 	perceptual_metacognition_experiment.push(fixation_block);
 	if (jQuery.inArray(i,catch_trials) !== -1) {
 		perceptual_metacognition_experiment.push(easy_block)
+	} else if (i < exp_len) {
+		perceptual_metacognition_experiment.push(calibration_block);
 	} else {
 		perceptual_metacognition_experiment.push(test_block);
 	}
