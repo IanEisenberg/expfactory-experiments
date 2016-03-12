@@ -311,7 +311,7 @@ function normal_random(mean, variance) {
 }
 
 function getTestStim() {
-	var tmp_contrast = normal_random(contrast, contrast/2)
+	var tmp_contrast = Math.max(1,Math.min(0,normal_random(contrast, contrast/10)))
 	var angle = Math.random() * 180
 	var sides = jsPsych.randomization.shuffle(['left', 'right'])
 	var stim = '<div class = ' + sides[0] + 'box><canvas id = canvas1></canvas></div>' +
@@ -534,7 +534,11 @@ var test_block = {
 	prompt: '<div class = centerbox><div class = fixation>+</div></div>',
 	on_finish: function(data) {
 		appendData(data)
-		conf_length = max_trial_length-data.rt
+		if (data.rt != -1) {
+			conf_length = max_trial_length-data.rt
+		} {
+			conf_length = 0
+		}
 	}
 };
 
@@ -554,7 +558,11 @@ var calibration_block = {
 	prompt: '<div class = centerbox><div class = fixation>+</div></div>',
 	on_finish: function(data) {
 		afterTrialUpdate(data)
-		conf_length = max_trial_length-data.rt
+		if (data.rt != -1) {
+			conf_length = max_trial_length-data.rt
+		} {
+			conf_length = 0
+		}
 	}
 };
 
@@ -574,7 +582,11 @@ var easy_block = {
 	prompt: '<div class = centerbox><div class = fixation>+</div></div>',
 	on_finish: function(data) {
 		appendData(data)
-		conf_length = max_trial_length-data.rt
+		if (data.rt != -1) {
+			conf_length = max_trial_length-data.rt
+		} {
+			conf_length = 0
+		}
 	}
 };
 
@@ -612,6 +624,28 @@ var confidence_key_block = {
 	}
 }
 
+var if_node = {
+	timeline: confidence_block,
+	conditional_function() {
+		if (conf_length === 0) {
+			return false
+		} else {
+			return true
+		}
+	}
+}
+
+var if_key_node = {
+	timeline: confidence_key_block,
+	conditional_function() {
+		if (conf_length === 0) {
+			return false
+		} else {
+			return true
+		}
+	}
+}
+
 /* create experiment definition array */
 var perceptual_metacognition_experiment = [];
 perceptual_metacognition_experiment.push(instruction_node);
@@ -631,7 +665,7 @@ for (var i = 0; i < (exp_len + calibration_len); i++) {
 	} else {
 		perceptual_metacognition_experiment.push(test_block);
 	}
-	perceptual_metacognition_experiment.push(confidence_key_block);
+	perceptual_metacognition_experiment.push(if_key_node);
 }
 perceptual_metacognition_experiment.push(post_task_block)
 perceptual_metacognition_experiment.push(end_block);
